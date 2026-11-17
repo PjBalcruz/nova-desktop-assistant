@@ -1,0 +1,101 @@
+# NOVA configuration. Add apps, sites or Chrome profiles here (no code changes needed).
+
+# ---- Chrome profiles: spoken name -> Chrome profile folder ----
+[chrome.profiles]
+chrome = "Default"
+default = "Default"
+ag = "Profile 6"
+mp = "Profile 7"
+work = "Profile 5"
+
+# ---- Desktop apps: start_name must match the Name shown by Get-StartApps ----
+# process = the program name NOVA looks for to confirm the app really opened.
+[apps.chrome]
+start_name = "Google Chrome"
+aliases = ["chrome", "google chrome", "browser"]
+process = "chrome.exe"
+
+[apps.discord]
+start_name = "Discord"
+aliases = ["discord"]
+process = "Discord.exe"
+
+[apps.spotify]
+start_name = "Spotify"
+aliases = ["spotify", "music"]
+process = "Spotify.exe"
+
+[apps.vscode]
+start_name = "Visual Studio Code"
+aliases = ["vs code", "vscode", "visual studio code", "code"]
+process = "Code.exe"
+
+[apps.cmd]
+start_name = "Command Prompt"
+aliases = ["cmd", "command prompt"]
+
+[apps.roblox]
+start_name = "Roblox"
+aliases = ["roblox", "roblox player"]
+
+[apps.roblox_studio]
+start_name = "Roblox Studio"
+aliases = ["roblox studio"]
+
+# ---- Websites (opened in Chrome) ----
+[sites.google]
+url = "https://www.google.com"
+aliases = ["google"]
+
+[sites.gmail]
+url = "https://mail.google.com"
+aliases = ["gmail", "email", "mail"]
+
+[sites.youtube]
+url = "https://www.youtube.com"
+aliases = ["youtube"]
+
+[sites.claude]
+url = "https://claude.ai"
+aliases = ["claude"]
+
+[sites.chatgpt]
+url = "https://chatgpt.com"
+aliases = ["chatgpt", "chat gpt", "gpt"]
+
+[sites.github]
+url = "https://github.com"
+aliases = ["github"]
+
+[sites.convex]
+url = "https://dashboard.convex.dev"
+aliases = ["convex"]
+
+[sites.supabase]
+url = "https://supabase.com/dashboard"
+aliases = ["supabase"]
+
+[sites.vercel]
+url = "https://vercel.com/dashboard"
+aliases = ["vercel"]
+
+[sites.facebook]
+url = "https://www.facebook.com"
+aliases = ["facebook"]
+
+[sites.instagram]
+url = "https://www.instagram.com"
+aliases = ["instagram"]
+
+[sites.messenger]
+url = "https://www.messenger.com"
+aliases = ["messenger", "facebook messenger"]
+
+[sites.tiktok]
+url = "https://www.tiktok.com"
+aliases = ["tiktok", "tik tok"]
+
+# ---- Search engines: {query} is replaced with the encoded search text ----
+[search]
+google = "https://www.google.com/search?q={query}"
+youtube = "https://www.youtube.com/results?search_query={query}"
