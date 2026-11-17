@@ -11,7 +11,10 @@ from app.voice.listener import SAMPLE_RATE
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")  # hides a harmless Windows warning
 
 # A short hint so Whisper spells our app names correctly.
-_PROMPT = "Nova, open Discord, Spotify, Chrome, Gmail, GitHub, YouTube, VS Code, Messenger."
+_PROMPT = (
+    "Nova, open Discord. Open GitHub on AG. Open Gmail on MP. Open Chrome on work. "
+    "Search YouTube for programming tutorials. Open Spotify, VS Code, Messenger."
+)
 
 
 class TranscriptionError(RuntimeError):

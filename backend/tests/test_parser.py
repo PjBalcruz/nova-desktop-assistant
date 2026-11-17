@@ -1,7 +1,11 @@
 from app.parser import parse_command
 
-PROFILES = {"chrome", "default", "ag", "mp", "work"}
+PROFILES = {"chrome", "default", "ag", "eg", "ig", "mp", "work"}
 
+
+def test_misheard_profile_names():
+    assert parse_command("Open GitHub on E.G.", PROFILES).profile == "eg"
+    assert parse_command("open github on A G", PROFILES).profile == "ag"
 
 def test_open_app_with_wake_word():
     cmd = parse_command("Nova, open Discord.", PROFILES)

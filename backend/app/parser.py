@@ -46,9 +46,11 @@ def parse_command(text: str, profile_names: set[str]) -> Command | None:
     if m := _OPEN.match(text):
         target, profile = m.group(1).strip(), None
         p = _PROFILE.match(target)
-        # Only treat "... on X" as a profile if X is a profile name we know.
-        if p and p.group(2).strip().lower() in profile_names:
-            target, profile = p.group(1).strip(), p.group(2).strip().lower()
+        if p:
+            # Speech often turns "AG" into "A.G." or "E.G.", so drop dots and spaces first.
+            spoken_profile = re.sub(r"[.\s]", "", p.group(2).lower())
+            if spoken_profile in profile_names:  # only known profile names count
+                target, profile = p.group(1).strip(), spoken_profile
         return Command("open", target=target, profile=profile)
 
     return None
