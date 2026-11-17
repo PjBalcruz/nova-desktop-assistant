@@ -1,6 +1,8 @@
 """Decides what a typed (later: spoken) sentence should do, and does it."""
 from __future__ import annotations
 
+import re
+
 from app.automation import browser
 from app.automation.app_manager import OpenResult, find_app, open_app
 from app.config import NovaConfig
@@ -26,5 +28,10 @@ def handle_text(text: str, config: NovaConfig) -> OpenResult:
 
     if browser.find_site(cmd.target, config) is not None:
         return browser.open_site(cmd.target, config, cmd.profile)
+
+    # "open work" / "open AG": a bare Chrome profile name opens Chrome in that profile.
+    spoken_profile = re.sub(r"[.\s]", "", cmd.target.lower())
+    if spoken_profile in config.chrome_profiles:
+        return browser.open_chrome_window(config, spoken_profile)
 
     return OpenResult(False, f"I don't know an app or site called {cmd.target}. You can add it to nova.toml.")

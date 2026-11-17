@@ -79,6 +79,8 @@ def _open_in_chrome(url: str | None, profile: str | None, config: NovaConfig, la
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         if _chrome_running():
+            if url is None:  # just a Chrome window, no page
+                return OpenResult(True, f"{where} is open.")
             return OpenResult(True, f"{label} is open in {where}.")
         time.sleep(0.5)
     return OpenResult(False, "I started Chrome, but it didn't appear after 10 seconds.")
