@@ -1,4 +1,4 @@
-"""Loads and validates nova.toml (apps, sites, Chrome profiles, search engines)."""
+"""Loads and validates nova.toml (apps, sites, Chrome profiles, search engines, microphone)."""
 from __future__ import annotations
 
 import tomllib
@@ -26,6 +26,7 @@ class NovaConfig(BaseModel):
     apps: dict[str, AppEntry] = Field(default_factory=dict)
     sites: dict[str, SiteEntry] = Field(default_factory=dict)
     search: dict[str, str] = Field(default_factory=dict)
+    input_device: str | None = None  # part of the microphone's name
 
 
 def load_config(path: Path = CONFIG_PATH) -> NovaConfig:
@@ -36,4 +37,5 @@ def load_config(path: Path = CONFIG_PATH) -> NovaConfig:
         apps=raw.get("apps", {}),
         sites=raw.get("sites", {}),
         search=raw.get("search", {}),
+        input_device=raw.get("audio", {}).get("input_device"),
     )

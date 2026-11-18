@@ -101,3 +101,7 @@ aliases = ["tiktok", "tik tok"]
 [search]
 google = "https://www.google.com/search?q={query}"
 youtube = "https://www.youtube.com/results?search_query={query}"
+
+# ---- Audio ----
+[audio]
+input_device = "Microphone Array"   # part of your microphone's name

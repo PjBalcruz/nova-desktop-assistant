@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOVA</title>
+<style>
+  :root { --bg:#0b0b0c; --fg:#f2f2f2; --muted:#8a8a8f; --line:#26262a; --card:#141416; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,"Segoe UI",sans-serif; display:flex; justify-content:center; }
+  main { width:min(640px,100%); min-height:100vh; padding:28px 20px; display:flex; flex-direction:column; gap:22px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; }
+  h1 { margin:0; font-size:1.3rem; font-weight:600; letter-spacing:.35em; }
+  #voice { color:var(--muted); font-size:.85rem; }
+  .center { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  #mic { width:96px; height:96px; border-radius:50%; border:1px solid var(--fg); background:transparent; color:var(--fg); font-size:2rem; cursor:pointer; }
+  #mic.on { background:var(--fg); color:var(--bg); }
+  #mic:disabled { opacity:.3; cursor:not-allowed; }
+  #state { font-size:1.1rem; }
+  #detail { color:var(--muted); font-size:.9rem; min-height:1.3em; text-align:center; }
+  #error { color:#e5484d; font-size:.9rem; min-height:1.3em; text-align:center; }
+  button.plain { background:transparent; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:6px 16px; cursor:pointer; }
+  button.plain:disabled { opacity:.3; cursor:not-allowed; }
+  #log { flex:1; min-height:180px; max-height:46vh; overflow-y:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .msg span { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; }
+  .msg p { margin:2px 0 0; }
+  .msg.nova p { color:#d6d6da; }
+  form { display:flex; gap:8px; }
+  input { flex:1; background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.95rem; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>NOVA</h1><span id="voice">Connecting…</span></header>
+
+  <section class="center">
+    <button id="mic" aria-label="Start or stop listening" disabled>🎤</button>
+    <div id="state">Connecting…</div>
+    <div id="detail"></div>
+    <button id="cancel" class="plain" disabled>Cancel</button>
+    <div id="error" role="alert"></div>
+  </section>
+
+  <section id="log" aria-live="polite"></section>
+
+  <form id="typed" autocomplete="off">
+    <input id="text" maxlength="300" placeholder="Or type a command, e.g. open spotify">
+    <button class="plain" type="submit">Send</button>
+  </form>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const HEADERS = { "Content-Type": "application/json", "X-Nova": "1" };
+  const LABELS = { idle: "Idle", listening: "Listening", transcribing: "Transcribing", executing: "Executing", speaking: "Speaking" };
+  let current = "idle";
+  let lastLog = "";
+
+  function setError(message) { $("error").textContent = message || ""; }
+
+  async function post(path, body) {
+    setError("");
+    try {
+      const res = await fetch(path, { method: "POST", headers: HEADERS, body: JSON.stringify(body || {}) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(typeof err.detail === "string" ? err.detail : "That didn't work.");
+      }
+    } catch {
+      setError("Can't reach NOVA. Is the server still running?");
+    }
+    refresh();
+  }
+
+  function render(s) {
+    current = s.state;
+    $("state").textContent = LABELS[s.state] || s.state;
+    $("detail").textContent = s.detail;
+    $("voice").textContent =
+      s.voice === "ready" ? "Speech model ready" :
+      s.voice === "loading" ? "Loading speech model…" :
+      "Voice unavailable (typing still works)";
+    if (s.voice === "unavailable" && s.voice_message) setError(s.voice_message);
+    $("mic").disabled = !(s.voice === "ready" && (s.state === "idle" || s.state === "listening"));
+    $("mic").classList.toggle("on", s.state === "listening");
+    $("cancel").disabled = s.state === "idle";
+
+    const logJson = JSON.stringify(s.log);
+    if (logJson !== lastLog) {
+      lastLog = logJson;
+      const box = $("log");
+      box.replaceChildren(...s.log.map((m) => {
+        const row = document.createElement("div");
+        row.className = "msg " + m.role;
+        const who = document.createElement("span");
+        who.textContent = m.role === "user" ? "You" : "NOVA";
+        const body = document.createElement("p");
+        body.textContent = m.text;
+        row.append(who, body);
+        return row;
+      }));
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch("/api/status");
+      render(await res.json());
+    } catch {
+      $("state").textContent = "Disconnected";
+      $("detail").textContent = "";
+      $("mic").disabled = true;
+      $("cancel").disabled = true;
+    }
+  }
+
+  $("mic").addEventListener("click", () => post(current === "listening" ? "/api/listen/stop" : "/api/listen/start"));
+  $("cancel").addEventListener("click", () => post("/api/cancel"));
+  $("typed").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = $("text").value.trim();
+    if (!text) return;
+    $("text").value = "";
+    post("/api/command", { text });
+  });
+
+  setInterval(refresh, 500);
+  refresh();
+</script>
+</body>
+</html>
