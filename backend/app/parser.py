@@ -7,11 +7,12 @@ from dataclasses import dataclass
 
 @dataclass
 class Command:
-    kind: str  # "open", "search", "volume" or "screenshot"
-    target: str = ""  # what to open, the search text, or the volume action (up/down/set/mute/unmute/get)
+    kind: str  # "open", "search", "volume", "screenshot" or "window"
+    target: str = ""  # what to open, the search text, the volume action, or the app for a window action
     engine: str = "google"  # search engine (for searches)
     profile: str | None = None  # spoken Chrome profile name, if one was said
     amount: int | None = None  # a number the user said (volume percent)
+    action: str = ""  # window action: switch, minimize, maximize, restore or close
 
 
 _WAKE = re.compile(r"^(?:hey\s+)?nova\b[,.!]?\s*", re.IGNORECASE)
@@ -37,6 +38,18 @@ _VOLUME_VERB = re.compile(
     re.IGNORECASE,
 )
 
+_WINDOW = re.compile(
+    r"^(close|quit|exit|minimi[sz]e|maximi[sz]e|restore"
+    r"|switch(?:\s+back)?\s+to|go(?:\s+back)?\s+to|jump\s+to|focus(?:\s+on)?)"
+    r"(?:\s+(?:the\s+)?(.+))?$",
+    re.IGNORECASE,
+)
+# "minimize this window" means the window you are using, not an app called "this window".
+_ACTIVE = {
+    "this", "that", "it", "window", "this window", "that window", "this app", "this application",
+    "current window", "the current window", "active window", "the active window",
+}
+
 _OPEN_AND_SEARCH = re.compile(r"^open\s+(google|youtube)\s+and\s+search\s+(?:for\s+)?(.+)$", re.IGNORECASE)
 _SEARCH_ENGINE_FOR = re.compile(r"^search\s+(google|youtube)\s+for\s+(.+)$", re.IGNORECASE)
 _SEARCH_FOR_ON = re.compile(r"^search\s+(?:for\s+)?(.+?)\s+on\s+(google|youtube)$", re.IGNORECASE)
@@ -49,6 +62,26 @@ _PROFILE = re.compile(
 
 def _number(value: str | None) -> int | None:
     return int(value) if value else None
+
+
+def _window_command(m: re.Match) -> Command | None:
+    verb = re.sub(r"\s+", " ", m.group(1).lower())
+    target = (m.group(2) or "").strip()
+    if target.lower() in _ACTIVE:
+        target = ""
+    if verb.startswith(("close", "quit", "exit")):
+        action = "close"
+    elif verb.startswith("minimi"):
+        action = "minimize"
+    elif verb.startswith("maximi"):
+        action = "maximize"
+    elif verb.startswith("restore"):
+        action = "restore"
+    else:
+        action = "switch"
+        if not target or target.lower() == "sleep":  # "go to sleep" is a different command
+            return None
+    return Command("window", target=target, action=action)
 
 
 def parse_command(text: str, profile_names: set[str]) -> Command | None:
@@ -72,6 +105,9 @@ def parse_command(text: str, profile_names: set[str]) -> Command | None:
     if m := _VOLUME_VERB.match(text):
         direction = "up" if m.group(1).lower() in ("raise", "increase") else "down"
         return Command("volume", target=direction, amount=_number(m.group(2)))
+
+    if m := _WINDOW.match(text):
+        return _window_command(m)
 
     if m := _OPEN_AND_SEARCH.match(text):
         return Command("search", target=m.group(2).strip(), engine=m.group(1).lower())

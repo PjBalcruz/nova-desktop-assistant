@@ -54,3 +54,14 @@ def test_volume_commands():
 def test_screenshot_commands():
     assert parse_command("Take a screenshot.", PROFILES).kind == "screenshot"
     assert parse_command("capture the screen", PROFILES).kind == "screenshot"
+
+
+def test_window_commands():
+    cmd = parse_command("Close Spotify.", PROFILES)
+    assert (cmd.kind, cmd.action, cmd.target) == ("window", "close", "Spotify")
+    cmd = parse_command("Switch back to Discord", PROFILES)
+    assert (cmd.action, cmd.target) == ("switch", "Discord")
+    cmd = parse_command("minimize this window", PROFILES)
+    assert (cmd.action, cmd.target) == ("minimize", "")
+    assert parse_command("maximize chrome", PROFILES).action == "maximize"
+    assert parse_command("Go to sleep", PROFILES) is None
