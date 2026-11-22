@@ -42,7 +42,7 @@ def main() -> int:
     from app.main import app
 
     print("Starting NOVA...")
-    uvicorn.run(app, host=HOST, port=PORT, log_level="info")
+    uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=False)
     return 0
 
 
