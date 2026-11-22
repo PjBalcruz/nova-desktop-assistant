@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from app.automation import browser
+from app.automation import browser, system_controls
 from app.automation.app_manager import OpenResult, find_app, open_app
 from app.config import NovaConfig
 from app.parser import parse_command
@@ -14,6 +14,10 @@ def handle_text(text: str, config: NovaConfig) -> OpenResult:
     if cmd is None:
         return OpenResult(False, "Sorry, I didn't understand that. Try: open discord")
 
+    if cmd.kind == "screenshot":
+        return system_controls.take_screenshot()
+    if cmd.kind == "volume":
+        return system_controls.adjust_volume(cmd.target, cmd.amount)
     if cmd.kind == "search":
         return browser.search_web(cmd.target, cmd.engine, config, cmd.profile)
 

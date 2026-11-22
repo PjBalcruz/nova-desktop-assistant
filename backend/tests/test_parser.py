@@ -39,3 +39,18 @@ def test_search_defaults_to_google():
 
 def test_unrelated_sentence_is_not_understood():
     assert parse_command("what is the weather", PROFILES) is None
+
+
+def test_volume_commands():
+    assert parse_command("Turn the volume down.", PROFILES).target == "down"
+    assert parse_command("volume up by 20 percent", PROFILES).amount == 20
+    assert parse_command("Lower the volume", PROFILES).target == "down"
+    cmd = parse_command("Set the volume to 30%.", PROFILES)
+    assert (cmd.kind, cmd.target, cmd.amount) == ("volume", "set", 30)
+    assert parse_command("mute", PROFILES).target == "mute"
+    assert parse_command("What's the volume?", PROFILES).target == "get"
+
+
+def test_screenshot_commands():
+    assert parse_command("Take a screenshot.", PROFILES).kind == "screenshot"
+    assert parse_command("capture the screen", PROFILES).kind == "screenshot"
