@@ -2,14 +2,17 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 import sounddevice as sd
 
 from app.config import NovaConfig
+from app.hands_free import HandsFree
 from app.orchestrator import handle_text
 from app.voice.listener import Recorder, find_input_device
 from app.voice.speech_to_text import Transcriber, TranscriptionError
 from app.voice.text_to_speech import Speaker
+from app.voice.wake_word import WakeWordError
 
 _MAX_LOG = 50
 
@@ -19,7 +22,7 @@ class AssistantError(Exception):
 
 
 class Assistant:
-    # states: idle, listening, transcribing, executing, speaking
+    # states: idle, starting, sleeping, listening, transcribing, executing, speaking
     def __init__(self, config: NovaConfig) -> None:
         self._config = config
         self._lock = threading.Lock()
@@ -32,6 +35,12 @@ class Assistant:
         self._transcriber = Transcriber()
         self._speaker = Speaker()
         self._recorder: Recorder | None = None
+        # hands-free mode
+        self._hands_free = False
+        self._hf: HandsFree | None = None
+        self._hf_stop: threading.Event | None = None
+        self._hf_thread: threading.Thread | None = None
+        self._wake_name = Path(config.wake_word).stem.replace("_", " ").title()
         threading.Thread(target=self._load_voice, daemon=True).start()
 
     # ---------- status ----------
@@ -42,6 +51,9 @@ class Assistant:
                 "detail": self._detail,
                 "voice": self._voice_status,
                 "voice_message": self._voice_message,
+                "hands_free": self._hands_free,
+                "wake_name": self._wake_name,
+                "mic_on": self._hands_free or self._state == "listening",
                 "log": list(self._log),
             }
 
@@ -63,12 +75,19 @@ class Assistant:
             return
         with self._lock:
             self._voice_status = "ready"
+        if self._config.hands_free_on_start:  # no click needed: start listening right away
+            try:
+                self.start_hands_free()
+            except AssistantError:
+                pass
 
-    # ---------- voice input ----------
+    # ---------- push-to-talk ----------
     def start_listening(self) -> None:
         with self._lock:
             if self._voice_status != "ready":
                 raise AssistantError(self._voice_message or "The speech model is still loading.")
+            if self._hands_free:
+                raise AssistantError("Hands-free is on. Mute it to use the mic button.")
             if self._state != "idle":
                 raise AssistantError("NOVA is busy. Press Cancel first.")
             self._cancel.clear()
@@ -107,12 +126,60 @@ class Assistant:
         self._add("user", text)
         self._run_command(text)
 
+    # ---------- hands-free ----------
+    def start_hands_free(self) -> None:
+        with self._lock:
+            if self._voice_status != "ready":
+                raise AssistantError(self._voice_message or "The speech model is still loading.")
+            if self._hands_free:
+                return
+            if self._state != "idle":
+                raise AssistantError("NOVA is busy. Press Cancel first.")
+            stop = threading.Event()
+            thread = threading.Thread(target=self._run_hands_free, args=(stop,), daemon=True)
+            self._hf_stop, self._hf_thread = stop, thread
+            self._hands_free = True
+            self._state, self._detail = "starting", "Starting hands-free mode..."
+        thread.start()
+
+    def _run_hands_free(self, stop: threading.Event) -> None:
+        try:
+            hf = HandsFree(self._config, self._transcriber, self._speaker, self._config.wake_word,
+                           stop, on_state=self._set, on_log=self._add)
+            with self._lock:
+                self._hf = hf
+            hf.run()
+        except (WakeWordError, ValueError, sd.PortAudioError) as exc:
+            if not stop.is_set():
+                self._add("nova", f"Hands-free mode stopped: {exc}")
+        except Exception as exc:
+            self._add("nova", f"Hands-free mode stopped unexpectedly: {exc}")
+        finally:
+            with self._lock:
+                if self._hf_stop is stop:  # only reset if a newer session hasn't taken over
+                    self._hf = None
+                    self._hf_stop = None
+                    self._hands_free = False
+                    self._state, self._detail = "idle", "Ready"
+
+    def stop_hands_free(self) -> None:
+        with self._lock:
+            stop, thread = self._hf_stop, self._hf_thread
+        if stop is None:
+            return
+        stop.set()  # the microphone closes as soon as the loop notices
+        self._speaker.stop()
+        if thread is not None:
+            thread.join(timeout=3)
+
     # ---------- typed input ----------
     def submit_text(self, text: str) -> None:
         text = text.strip()
         if not text:
             raise AssistantError("Type a command first.")
         with self._lock:
+            if self._hands_free:
+                raise AssistantError("Hands-free is on. Say a command, or mute it to type.")
             if self._state != "idle":
                 raise AssistantError("NOVA is busy. Press Cancel first.")
             self._cancel.clear()
@@ -137,6 +204,15 @@ class Assistant:
 
     def cancel(self) -> None:
         with self._lock:
+            if self._hands_free and self._hf is not None:
+                if self._state == "speaking":
+                    self._speaker.stop()
+                elif self._state in ("listening", "transcribing"):
+                    self._hf.cancel.set()  # the command is skipped
+                    self._detail = "Cancelling..."
+                elif self._state == "executing":
+                    raise AssistantError("Too late to cancel. That action is already running.")
+                return
             if self._state == "listening":
                 if self._recorder is not None:
                     self._recorder.stop()

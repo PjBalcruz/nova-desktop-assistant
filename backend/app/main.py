@@ -57,6 +57,16 @@ def listen_stop() -> dict:
     return _run(assistant.stop_listening)
 
 
+@app.post("/api/handsfree/start", dependencies=[Depends(require_nova_header)])
+def handsfree_start() -> dict:
+    return _run(assistant.start_hands_free)
+
+
+@app.post("/api/handsfree/stop", dependencies=[Depends(require_nova_header)])
+def handsfree_stop() -> dict:
+    return _run(assistant.stop_hands_free)
+
+
 @app.post("/api/command", dependencies=[Depends(require_nova_header)])
 def command(body: CommandIn) -> dict:
     return _run(assistant.submit_text, body.text)

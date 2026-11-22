@@ -105,3 +105,5 @@ youtube = "https://www.youtube.com/results?search_query={query}"
 # ---- Audio ----
 [audio]
 input_device = "Microphone Array"   # part of your microphone's name
+wake_word = "hey_jarvis"            # later: "hey_nova.onnx" once the model is trained
+hands_free_on_start = true 

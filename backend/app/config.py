@@ -1,4 +1,4 @@
-"""Loads and validates nova.toml (apps, sites, Chrome profiles, search engines, microphone)."""
+"""Loads and validates nova.toml (apps, sites, Chrome profiles, search engines, audio)."""
 from __future__ import annotations
 
 import tomllib
@@ -27,15 +27,23 @@ class NovaConfig(BaseModel):
     sites: dict[str, SiteEntry] = Field(default_factory=dict)
     search: dict[str, str] = Field(default_factory=dict)
     input_device: str | None = None  # part of the microphone's name
+    wake_word: str = "hey_jarvis"  # a ready-made model name, or the path to a .onnx file
+    hands_free_on_start: bool = False  # start listening for the wake word when NOVA starts
 
 
 def load_config(path: Path = CONFIG_PATH) -> NovaConfig:
     with open(path, "rb") as f:
         raw = tomllib.load(f)
+    audio = raw.get("audio", {})
+    wake_word = audio.get("wake_word", "hey_jarvis")
+    if wake_word.lower().endswith((".onnx", ".tflite")) and not Path(wake_word).is_absolute():
+        wake_word = str(path.parent / wake_word)  # relative paths start at the project folder
     return NovaConfig(
         chrome_profiles=raw.get("chrome", {}).get("profiles", {}),
         apps=raw.get("apps", {}),
         sites=raw.get("sites", {}),
         search=raw.get("search", {}),
-        input_device=raw.get("audio", {}).get("input_device"),
+        input_device=audio.get("input_device"),
+        wake_word=wake_word,
+        hands_free_on_start=bool(audio.get("hands_free_on_start", False)),
     )

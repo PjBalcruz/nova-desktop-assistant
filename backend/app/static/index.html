@@ -9,9 +9,10 @@
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,"Segoe UI",sans-serif; display:flex; justify-content:center; }
   main { width:min(640px,100%); min-height:100vh; padding:28px 20px; display:flex; flex-direction:column; gap:22px; }
-  header { display:flex; justify-content:space-between; align-items:baseline; }
+  header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
   h1 { margin:0; font-size:1.3rem; font-weight:600; letter-spacing:.35em; }
-  #voice { color:var(--muted); font-size:.85rem; }
+  .meta { display:flex; flex-direction:column; align-items:flex-end; gap:2px; font-size:.85rem; color:var(--muted); }
+  #micstatus.on { color:var(--fg); font-weight:600; }
   .center { display:flex; flex-direction:column; align-items:center; gap:12px; }
   #mic { width:96px; height:96px; border-radius:50%; border:1px solid var(--fg); background:transparent; color:var(--fg); font-size:2rem; cursor:pointer; }
   #mic.on { background:var(--fg); color:var(--bg); }
@@ -19,8 +20,10 @@
   #state { font-size:1.1rem; }
   #detail { color:var(--muted); font-size:.9rem; min-height:1.3em; text-align:center; }
   #error { color:#e5484d; font-size:.9rem; min-height:1.3em; text-align:center; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
   button.plain { background:transparent; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:6px 16px; cursor:pointer; }
   button.plain:disabled { opacity:.3; cursor:not-allowed; }
+  #hf.active { background:var(--fg); color:var(--bg); border-color:var(--fg); }
   #log { flex:1; min-height:180px; max-height:46vh; overflow-y:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; }
   .msg span { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; }
   .msg p { margin:2px 0 0; }
@@ -31,13 +34,19 @@
 </head>
 <body>
 <main>
-  <header><h1>NOVA</h1><span id="voice">Connecting…</span></header>
+  <header>
+    <h1>NOVA</h1>
+    <div class="meta"><span id="micstatus">Microphone off</span><span id="voice">Connecting…</span></div>
+  </header>
 
   <section class="center">
     <button id="mic" aria-label="Start or stop listening" disabled>🎤</button>
     <div id="state">Connecting…</div>
     <div id="detail"></div>
-    <button id="cancel" class="plain" disabled>Cancel</button>
+    <div class="row">
+      <button id="hf" class="plain" disabled>Turn on hands-free</button>
+      <button id="cancel" class="plain" disabled>Cancel</button>
+    </div>
     <div id="error" role="alert"></div>
   </section>
 
@@ -52,8 +61,12 @@
 <script>
   const $ = (id) => document.getElementById(id);
   const HEADERS = { "Content-Type": "application/json", "X-Nova": "1" };
-  const LABELS = { idle: "Idle", listening: "Listening", transcribing: "Transcribing", executing: "Executing", speaking: "Speaking" };
+  const LABELS = {
+    idle: "Idle", starting: "Starting", sleeping: "Waiting for wake word", listening: "Listening",
+    transcribing: "Transcribing", executing: "Executing", speaking: "Speaking",
+  };
   let current = "idle";
+  let handsFree = false;
   let lastLog = "";
 
   function setError(message) { $("error").textContent = message || ""; }
@@ -74,6 +87,7 @@
 
   function render(s) {
     current = s.state;
+    handsFree = s.hands_free;
     $("state").textContent = LABELS[s.state] || s.state;
     $("detail").textContent = s.detail;
     $("voice").textContent =
@@ -81,9 +95,18 @@
       s.voice === "loading" ? "Loading speech model…" :
       "Voice unavailable (typing still works)";
     if (s.voice === "unavailable" && s.voice_message) setError(s.voice_message);
-    $("mic").disabled = !(s.voice === "ready" && (s.state === "idle" || s.state === "listening"));
+
+    $("micstatus").textContent = s.mic_on ? "● Microphone on" : "Microphone off";
+    $("micstatus").className = s.mic_on ? "on" : "";
+
+    $("mic").disabled = !(s.voice === "ready" && !s.hands_free && (s.state === "idle" || s.state === "listening"));
     $("mic").classList.toggle("on", s.state === "listening");
-    $("cancel").disabled = s.state === "idle";
+
+    $("hf").textContent = s.hands_free ? "Hands-free on · click to mute" : 'Turn on hands-free ("' + s.wake_name + '")';
+    $("hf").classList.toggle("active", s.hands_free);
+    $("hf").disabled = s.voice !== "ready" || (!s.hands_free && s.state !== "idle");
+
+    $("cancel").disabled = s.state === "idle" || s.state === "sleeping";
 
     const logJson = JSON.stringify(s.log);
     if (logJson !== lastLog) {
@@ -110,12 +133,15 @@
     } catch {
       $("state").textContent = "Disconnected";
       $("detail").textContent = "";
+      $("micstatus").textContent = "Status unknown";
       $("mic").disabled = true;
+      $("hf").disabled = true;
       $("cancel").disabled = true;
     }
   }
 
   $("mic").addEventListener("click", () => post(current === "listening" ? "/api/listen/stop" : "/api/listen/start"));
+  $("hf").addEventListener("click", () => post(handsFree ? "/api/handsfree/stop" : "/api/handsfree/start"));
   $("cancel").addEventListener("click", () => post("/api/cancel"));
   $("typed").addEventListener("submit", (event) => {
     event.preventDefault();
