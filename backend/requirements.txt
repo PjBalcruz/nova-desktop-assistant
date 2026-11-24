@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+psutil
+sounddevice
+faster-whisper
+openwakeword
+pycaw
+Pillow
+pytest
+httpx
